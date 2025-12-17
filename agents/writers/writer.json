@@ -1,0 +1,84 @@
+{
+  "aic": "",
+  "active": true,
+  "protocolVersion": "01.00",
+  "name": "WriterAgent",
+  "description": "基于用户需求，生成对应的分镜大纲和分镜脚本",
+  "version": "1.0.0",
+  "provider": {
+    "organization": "陈子轩",
+    "department": "北京邮电大学国际学院物联网工程2024215113",
+    "url": "https://example.com",
+    "license": "示例 ICP 备案号"
+  },
+  "securitySchemes": {
+    "mtls": {
+      "type": "mutualTLS",
+      "description": "智能体间 mTLS 双向认证",
+      "x-caChallengeBaseUrl": "http://10.129.34.151:5000/upload-cert"
+    }
+  },
+  "endPoints": [
+    {
+      "url": "http://10.129.34.151:5000/writer",
+      "transport": "JSONRPC",
+      "security": [
+        {
+          "mtls": []
+        }
+      ]
+    }
+  ],
+  "capabilities": {
+    "streaming": false,
+    "notification": false,
+    "messageQueue": []
+  },
+  "defaultInputModes": [
+    "text/plain"
+  ],
+  "defaultOutputModes": [
+    "text/plain"
+  ],
+  "skills": [
+    {
+      "id": "WriterAgent.write_abstract",
+      "name": "write_abstract",
+      "description": "基于用户需求，生成一个剧本摘要，用于和用户确认剧情走向",
+      "version": "1.0.0",
+      "tags": [
+        "writing",
+        "剧情摘要"
+      ],
+      "examples": [
+        "做一个关于地理的纪录片，主要讲荷兰的地理知识，摄影风格可以参考BBC的《国家地理》。"
+      ],
+      "inputModes": [
+        "text/plain"
+      ],
+      "outputModes": [
+        "text/plain"
+      ]
+    },
+    {
+      "id": "WriterAgent.write_script",
+      "name": "write_script",
+      "description": "基于用户需求，生成一个分镜大纲，包括分镜时间、分镜地点、分镜人物、分镜事件等",
+      "version": "1.0.0",
+      "tags": [
+        "writing",
+        "剧本脚本"
+      ],
+      "examples": [
+        "做一个关于地理的纪录片，主要讲荷兰的地理知识，摄影风格可以参考BBC的《国家地理》。"
+      ],
+      "inputModes": [
+        "text/plain"
+      ],
+      "outputModes": [
+        "text/plain"
+      ]
+    }
+  ],
+  "lastModifiedTime": ""
+}

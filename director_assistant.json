@@ -1,0 +1,66 @@
+{
+  "aic": "",
+  "active": true,
+  "protocolVersion": "01.00",
+  "name": "DirectorAssistant",
+  "description": "和用户对话，帮助用户组织各种提示词，并调用联网搜索工具帮用户搜集相关资料",
+  "version": "1.0.0",
+  "provider": {
+    "organization": "陈子轩",
+    "department": "北京邮电大学国际学院物联网工程2024215113班",
+    "url": "https://example.com",
+    "license": "示例 ICP 备案号"
+  },
+  "securitySchemes": {
+    "mtls": {
+      "type": "mutualTLS",
+      "description": "智能体间 mTLS 双向认证",
+      "x-caChallengeBaseUrl": "http://10.129.34.151:5000/upload-cert"
+    }
+  },
+  "endPoints": [
+    {
+      "url": "http://10.129.34.151:5000/director_assistant",
+      "transport": "JSONRPC",
+      "security": [
+        {
+          "mtls": []
+        }
+      ]
+    }
+  ],
+  "capabilities": {
+    "streaming": false,
+    "notification": false,
+    "messageQueue": []
+  },
+  "defaultInputModes": [
+    "text/plain"
+  ],
+  "defaultOutputModes": [
+    "text/plain"
+  ],
+  "skills": [
+    {
+      "id": "DirectorAssistant.chat",
+      "name": "chat",
+      "description": "和用户对话，帮助用户组织各种提示词",
+      "version": "1.0.0",
+      "tags": [
+        "chat",
+        "对话",
+        "需求组织"
+      ],
+      "examples": [
+        "我今天想做一个纪录片"
+      ],
+      "inputModes": [
+        "text/plain"
+      ],
+      "outputModes": [
+        "text/plain"
+      ]
+    }
+  ],
+  "lastModifiedTime": ""
+}
