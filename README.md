@@ -33,17 +33,12 @@
 
 ### 环境要求
 - Python 3.10+
-- 依赖管理：pip
+- 依赖管理：pip/conda
 
 ### 安装依赖
 ```bash
 pip install -r requirements.txt
 ```
-
-### 配置文件
-项目需要以下配置文件：
-- `.env`：环境变量配置
-- `director_assistant.json`：客户端配置
 
 ## 使用流程
 
@@ -76,8 +71,7 @@ python run_acps.py
 
 ### 交互命令
 
-- **确认指令**："确认"、"是"、"确定"、"好的"
-- **退出系统**："退出"、"再见"、"bye"、"quit"、"exit"、"结束"
+- **确认指令**：输入“确认”进入下一阶段
 
 ## 项目结构
 
