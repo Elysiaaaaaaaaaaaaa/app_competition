@@ -2,10 +2,9 @@
   "aic": "",
   "active": true,
   "protocolVersion": "01.00",
-  "name": "OutlineWriter",
-  "description": "根据用户需求生成分镜大纲的 ACPs 兼容服务",
+  "name": "ScreenWriter",
+  "description": "根据用户需求生成分镜脚本的 ACPs 兼容服务",
   "version": "1.0.0",
-  "webAppUrl":"https://13.236.177.52:8032/outline_writer",
   "provider": {
     "organization": "北京邮电大学",
     "department": "国际学院",
@@ -21,7 +20,7 @@
   },
   "endPoints": [
     {
-      "url": "https://13.236.177.52:8032/outline_writer",
+      "url": "https://13.236.177.52:8033/screenwriter",
       "transport": "JSONRPC",
       "security": [
         {
@@ -43,13 +42,14 @@
   ],
   "skills": [
     {
-      "id": "OutlineWriter.chat",
-      "name": "chat",
-      "description": "和用户对话，根据用户需求生成分镜大纲",
+      "id": "ScreenWriter.generate",
+      "name": "generate",
+      "description": "根据用户生成的视频大纲生成分镜提示词，用于AIGC视频创作",
       "version": "1.0.0",
       "tags": [
         "写作",
-        "分镜大纲"
+        "分镜脚本",
+        "提示词创作"
       ],
       "examples": [
         "我今天想做一个纪录片，主要讲荷兰的地理知识，摄影风格可以参考BBC的《国家地理》。帮我写一个分镜大纲",

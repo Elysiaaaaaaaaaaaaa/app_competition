@@ -5,7 +5,7 @@
   "name": "DirectorAssistant",
   "description": "和用户对话，帮助用户组织各种提示词，并调用联网搜索工具帮用户搜集相关资料",
   "version": "1.0.0",
-  "webAppUrl":"http://13.236.177.52:8031/director_assistant",
+  "webAppUrl":"",
   "provider": {
     "organization": "北京邮电大学",
     "department": "国际学院",

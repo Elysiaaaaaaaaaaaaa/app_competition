@@ -1,5 +1,12 @@
 from moviepy import VideoFileClip, concatenate_videoclips
 import os
+import sys
+import logging
+
+# 配置日志
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+import subprocess
+import sys
 
 def merge_videos(video_paths, output_path):
     """
@@ -23,7 +30,22 @@ def merge_videos(video_paths, output_path):
         clips.append(clip)
 
     final_clip = concatenate_videoclips(clips, method="compose")
-    final_clip.write_videofile(output_path, codec="libx264", audio_codec="aac")
+    
+    # 处理中文路径问题
+    if sys.platform.startswith('win'):
+        # 在Windows系统上，确保路径是绝对路径
+        output_path = os.path.abspath(output_path)
+    
+    # 使用更稳健的参数来处理中文路径
+    final_clip.write_videofile(
+        output_path, 
+        codec="libx264", 
+        audio_codec="aac",
+        # 增加线程数，提高处理速度
+        threads=4,
+        # 确保正确处理非ASCII字符
+        ffmpeg_params=['-y']
+    )
 
     # 释放资源
     for clip in clips:

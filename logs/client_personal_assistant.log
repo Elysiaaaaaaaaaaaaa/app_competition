@@ -130,3 +130,28 @@
 2026-01-15 16:48:29+0800 | INFO | client.personal_assistant | event=cli_start session_id=session-ab11af38-4e04-4675-a5f1-82ec4fab10a5 user=czx
 2026-01-15 17:18:16+0800 | INFO | client.personal_assistant | event=cli_start session_id=session-4073f447-8d07-4aa1-a653-7fa70c1a9758 user=czx
 2026-01-15 19:39:01+0800 | INFO | client.personal_assistant | event=cli_start session_id=session-4073f447-8d07-4aa1-a653-7fa70c1a9758 user=czx
+2026-01-16 10:07:10+0800 | INFO | client.personal_assistant | event=discovery_request base_url=https://www.ioa.pub/discovery/api/discovery/ agents=[{'name': 'outline_writer', 'query': '分镜大纲', 'limit': 1}]
+2026-01-16 10:07:14+0800 | INFO | client.personal_assistant | event=discovery_response agent=outline_writer query=分镜大纲 url=http://13.236.177.52:8032/outline_writer
+2026-01-16 10:13:04+0800 | INFO | client.personal_assistant | event=discovery_request base_url=https://www.ioa.pub/discovery/api/discovery/ agents=[{'name': 'outline_writer', 'query': '分镜大纲', 'limit': 1}]
+2026-01-16 10:13:07+0800 | INFO | client.personal_assistant | event=discovery_response agent=outline_writer query=分镜大纲 url=http://13.236.177.52:8032/outline_writer
+2026-01-16 10:22:47+0800 | INFO | client.personal_assistant | event=discovery_request base_url=https://www.ioa.pub/discovery/api/discovery/ agents=[{'name': 'outline_writer', 'query': '分镜大纲', 'limit': 1}]
+2026-01-16 10:22:50+0800 | INFO | client.personal_assistant | event=discovery_response agent=outline_writer query=分镜大纲 url=http://13.236.177.52:8032/outline_writer
+2026-01-16 10:25:07+0800 | INFO | client.personal_assistant | event=discovery_request base_url=https://www.ioa.pub/discovery/api/discovery/ agents=[{'name': 'outline_writer', 'query': '分镜大纲', 'limit': 1}]
+2026-01-16 10:25:12+0800 | INFO | client.personal_assistant | event=discovery_response agent=outline_writer query=分镜大纲 url=http://13.236.177.52:8032/outline_writer
+2026-01-16 16:51:47+0800 | INFO | client.personal_assistant | event=cli_start session_id=session-469f6f3c-9fa5-47a7-ab17-f4a2e05eca81 user=czx
+2026-01-16 16:53:29+0800 | INFO | client.personal_assistant | event=cli_start session_id=session-469f6f3c-9fa5-47a7-ab17-f4a2e05eca81 user=czx
+2026-01-17 20:30:46+0800 | INFO | client.personal_assistant | event=cli_start session_id=session-46ae112f-a534-46e1-9168-6aaaf244798c user=czx
+2026-01-17 20:31:50+0800 | INFO | client.personal_assistant | event=cli_start session_id=None user=czx
+2026-01-17 20:33:43+0800 | INFO | client.personal_assistant | event=cli_start session_id=None user=czx
+2026-01-17 20:34:58+0800 | INFO | client.personal_assistant | event=cli_start session_id=None user=czx
+2026-01-17 20:37:54+0800 | INFO | client.personal_assistant | event=cli_start session_id=None user=czx
+2026-01-17 20:41:19+0800 | INFO | client.personal_assistant | event=cli_start session_id=None user=czx
+2026-01-17 20:41:52+0800 | INFO | client.personal_assistant | event=cli_start session_id=None user=czx
+2026-01-17 20:44:14+0800 | INFO | client.personal_assistant | event=cli_start session_id=None user=czx
+2026-01-17 20:46:40+0800 | INFO | client.personal_assistant | event=cli_start session_id=None user=czx
+2026-01-17 20:47:54+0800 | INFO | client.personal_assistant | event=cli_start session_id=None user=czx
+2026-01-17 20:49:23+0800 | INFO | client.personal_assistant | event=cli_start session_id=None user=czx
+2026-01-17 20:53:33+0800 | INFO | client.personal_assistant | event=cli_start session_id=None user=czx
+2026-01-17 20:57:40+0800 | INFO | client.personal_assistant | event=cli_start session_id=session-c60a70e8-a6dd-4a1d-aa5e-3493515527e5 user=czx
+2026-01-17 21:08:12+0800 | INFO | client.personal_assistant | event=cli_start session_id=session-8f5ea468-4aee-412b-ae7e-58f6cb687823 user=czx
+2026-01-17 22:46:30+0800 | INFO | client.personal_assistant | event=cli_start session_id=session-a04c98c3-9e6a-4200-a56e-8cd0005d5aa4 user=test_user
