@@ -501,59 +501,6 @@ class PersonalAssistantOrchestrator:
         result_state['reply'] = _finalize(reply)
         return result_state
 
-    async def handle_user_input_(self, session_id: str, user_input: str) -> AssistantReply:
-        #暂时废弃
-        """主入口：接收用户文本并交由 LangGraph 路由，返回回复。
-
-        Args:
-            session_id: 会话唯一标识，区分多用户上下文。
-            user_input: 用户当前输入文本。
-
-        Returns:
-            `AssistantReply`，包含文本、是否等待后续输入及结束标识。
-        """
-        # if text.lower() in EXIT_COMMANDS:
-        #     self._sessions.pop(session_id, None)
-        #     self._history_store.pop(session_id, None)
-        #     return AssistantReply("好的，会话已结束，欢迎随时再来。", awaiting_followup=False, end_session=True)
-        ##以上代码暂时废弃
-
-        session_data = self._get_session_state(session_id)
-
-        def _finalize(reply: AssistantReply) -> AssistantReply:
-            """统一在返回前递增消息计数并回传回复。"""
-            session_data["message_count"] = session_data.get("message_count", 0) + 1
-            return reply
-        print('session_history:',session_data)##加载会话记录后，这里可以继续之前中断的任务
-        graph_state: ChatGraphState = {
-            "session_id": session_id,
-            "user_input": '',
-            "session_data": session_data,
-        }
-        graph_state["session_data"] = self.route_state(graph_state)
-        text = ''
-        if graph_state["session_data"]["now_state"] != "create":
-            user_input = input("用户：").strip()
-            text = (user_input or "").strip()
-            if not text:
-                return AssistantReply("请告诉我您的需求或问题，我会尽力帮助。")
-        # 通过 LangGraph 统一路由当前对话输入。
-        graph_state['user_input'] = text
-        graph_state["session_data"] = self.route_task(graph_state)
-        result_state = await self._graph.ainvoke(graph_state)
-        reply = result_state.get("reply")
-        if not isinstance(reply, AssistantReply):
-            fallback_text = result_state.get("response", "抱歉，我暂时无法处理该请求。")
-            reply = AssistantReply(str(fallback_text))
-        print(result_state['session_data'])
-        self.userfile.save_content(self.project_name,result_state['session_data']['material'],result_state['session_id'])
-        self.userfile.save_session(result_state['session_id'],result_state['session_data'])
-        if result_state['session_data']['chat_with_assistant'] == False:
-            reply.end_session = True
-            merge_videos(result_state['session_data']['material']['video_address'],self.userfile.file_path+self.project_name+'/'+self.project_name+'.mp4')
-        # 维护对话轮次计数，便于后续做上下文压缩等扩展。
-        return _finalize(reply)
-
     def route_state(self,state:ChatGraphState):
         session_id = state["session_id"]
         session_data = state["session_data"]

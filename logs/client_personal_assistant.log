@@ -159,3 +159,4 @@
 2026-01-18 09:44:12+0800 | INFO | client.personal_assistant | event=cli_start session_id=session-60ae1477-4684-4e43-80a5-5ef4b0c55474 user=czx
 2026-01-18 10:17:38+0800 | INFO | client.personal_assistant | event=cli_start session_id=session-88977609-0b13-4620-8f3e-3b729a351fce user=czx
 2026-01-18 10:25:36+0800 | INFO | client.personal_assistant | event=cli_start session_id=session-2e8baba5-3169-4a38-b5d8-71098a19fd63 user=czx
+2026-01-18 10:42:53+0800 | INFO | client.personal_assistant | event=cli_start session_id=None user=test_user

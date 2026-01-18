@@ -19,6 +19,7 @@ class WorkRequest(BaseModel):
     project_name: str
     user_input: str
     user_id: str
+    mode: str
 
 # 健康检查路由
 @app.get("/")
@@ -27,9 +28,6 @@ def read_root():
         "message": "后端服务运行正常",
         "version": "1.0.0"
     }
-
-
-
 
 ## 示例API路由
 @app.get("/api/v1/health")
@@ -64,10 +62,10 @@ async def work(request: WorkRequest):
         return {
             "success": True,
             "message": reply.text,
-            "awaiting_followup": reply.awaiting_followup,
             "end_session": reply.end_session,
             "project_name": orchestrator.project_name,
-            "session_id": orchestrator.main_session_id
+            "session_id": orchestrator.main_session_id,
+            "session_data": result_state['session_data']
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

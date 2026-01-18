@@ -1,4 +1,9 @@
 {
-    "material": null,
+    "material": {
+        "idea": null,
+        "outline": [],
+        "screen": [],
+        "video_address": []
+    },
     "session_id": null
 }
