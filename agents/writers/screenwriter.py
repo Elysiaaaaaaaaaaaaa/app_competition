@@ -130,7 +130,8 @@ class ScreenWriter:
         if not self.last_id:
             raw_screen = self.init_assistant(''.join(session_data['material']['idea']))
             for i in raw_screen.split('/'):
-                self.screen.append(i)
+                if len(i) > 10:
+                    self.screen.append(i)
             return self.screen
         need_modify = session_data['material']['screen'][session_data['modify_num']-1]
         completion = client.responses.create(

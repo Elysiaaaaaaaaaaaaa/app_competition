@@ -9,9 +9,6 @@ class UserFile:
         self.project_path = f'./user_files/{user}/projects/'
         if not os.path.exists(self.file_path):
             os.makedirs(self.file_path)
-        # 创建项目文件夹，如果它不存在
-        if not os.path.exists(self.project_path):
-            os.makedirs(self.project_path)
         self.user_project = [i for i in os.listdir(self.project_path) if os.path.isdir(os.path.join(self.project_path,i))]
         self.project_content = {}
         for i in self.user_project:

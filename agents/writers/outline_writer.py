@@ -69,7 +69,8 @@ class OutlineWriter:
         if not self.last_id:
             raw_outline = self.init_assistant(''.join(session_data['material']['idea']))
             for i in raw_outline.split('/'):
-                self.outline.append(i)
+                if len(i) > 10:
+                    self.outline.append(i)
             return self.outline
         completion = client.responses.create(
             model="doubao-seed-1-6-251015",

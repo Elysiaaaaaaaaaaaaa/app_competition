@@ -20,49 +20,21 @@ from base import get_agent_logger
 from transform_ import to_json, from_json
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, END
-# 将可能导致导入错误的导入语句移到try-except块中
-try:
-    from agents.assistant.director_assistant import Assistant
-except ImportError:
-    # 如果无法导入Assistant类，创建一个简单的替代类
-    class Assistant:
-        def call(self, user_text, session_data):
-            return f"已接收您的请求：{user_text}"
+from agents.assistant.director_assistant import Assistant
+from acps_aip.aip_rpc_client import AipRpcClient
+from acps_aip.aip_base_model import Task, TextDataItem
+from acps_aip.discovery_client import DiscoveryError, discover_agent_endpoints
+from acps_aip.mtls_config import load_mtls_config_from_json
 
-try:
-    from agents.writers.outline_writer import OutlineWriter
-except ImportError:
-    # 如果无法导入OutlineWriter类，创建一个简单的替代类
-    class OutlineWriter:
-        def call(self, session_data):
-            return ["这是一个简单的大纲"]
+import json
 
-try:
-    from agents.writers.screenwriter import ScreenWriter
-except ImportError:
-    # 如果无法导入ScreenWriter类，创建一个简单的替代类
-    class ScreenWriter:
-        def call(self, session_data):
-            return ["这是一个简单的分镜"]
+from file_manage import UserFile
+from agents.writers.screenwriter import ScreenWriter
+from agents.assistant.director_assistant import Assistant
+from agents.writers.outline_writer import OutlineWriter
+from agents.animators.animator_qwen_t2v import Animator
 
-try:
-    from agents.animators.animator_qwen_t2v import Animator
-except ImportError:
-    # 如果无法导入Animator类，创建一个简单的替代类
-    class Animator:
-        def __init__(self, name, download_link):
-            self.name = name
-            self.download_link = download_link
-        
-        def call(self, session_data):
-            return "video.mp4"
-
-try:
-    from tools.merge_video import merge_videos
-except ImportError:
-    # 如果无法导入merge_videos函数，创建一个简单的替代函数
-    def merge_videos(video_list, output_path):
-        pass
+from tools.merge_video import merge_videos
 class AgentEntry(TypedDict):
     """缓存单个 Agent 基础信息与预处理关键字。"""
 
@@ -456,9 +428,9 @@ class PersonalAssistantOrchestrator:
             agentans = self.fun_call_agent(state)
             state['session_data']["now_state"] = "modify_comfirm"
             state['reply'] = AssistantReply(agentans)
-            if state['session_data']['video_generating'] > len(state['session_data']['material']['video_address']):
+            if state['session_data']['video_generating'] >= len(state['session_data']['material']['screen']):
                 state['session_data']['chat_with_assistant'] = False
-            state['reply'].text += '\n是否需要修改？'
+            #state['reply'].text += '\n是否需要修改？'
             return state
         
         if self.mode == 'test':
@@ -494,17 +466,40 @@ class PersonalAssistantOrchestrator:
 
         session_data = self._get_session_state(session_id)
 
-        # 简单实现，返回一个包含AssistantReply的ChatGraphState对象
-        # 这样API端点就能正常工作，即使缺少某些依赖项
-        reply = AssistantReply(f"已接收您的请求：{text}")
+        def _finalize(reply: AssistantReply) -> AssistantReply:
+            """统一在返回前递增消息计数并回传回复。"""
+            session_data["message_count"] = session_data.get("message_count", 0) + 1
+            return reply
+
+        if session_data.get("pending_candidates"):
+            # 若存在待确认的候选商品，优先处理用户对当前商品的反馈。
+            reply = await self._handle_pending_candidates(session_id, session_data, text)
+            return _finalize(reply)
+
         graph_state: ChatGraphState = {
             "session_id": session_id,
             "user_input": text,
             "session_data": session_data,
-            "reply": reply
+            "reply": [],
         }
-        
-        return graph_state
+
+        # 通过 LangGraph 统一路由当前对话输入。
+        graph_state["session_data"] = self.route_state(graph_state)
+        graph_state["session_data"] = self.route_task(graph_state)
+        result_state = await self._graph.ainvoke(graph_state)
+        reply = result_state.get("reply")
+        if not isinstance(reply, AssistantReply):
+            fallback_text = result_state.get("response", "抱歉，我暂时无法处理该请求。")
+            reply = AssistantReply(str(fallback_text))
+        self.userfile.save_content(self.project_name,result_state['session_data']['material'],result_state['session_id'])
+        self.userfile.save_session(result_state['session_id'],result_state['session_data'])
+        check_state(result_state)
+        if result_state['session_data']['chat_with_assistant'] == False:
+            reply.end_session = True
+            merge_videos(result_state['session_data']['material']['video_address'],self.userfile.project_path+self.project_name+'/'+self.project_name+'.mp4')
+        # 维护对话轮次计数，便于后续做上下文压缩等扩展。
+        result_state['reply'] = _finalize(reply)
+        return result_state
 
     async def handle_user_input_(self, session_id: str, user_input: str) -> AssistantReply:
         #暂时废弃
@@ -579,7 +574,6 @@ class PersonalAssistantOrchestrator:
                     session_data['now_task'] = 'screen'
                 if now_task == 'screen':
                     session_data['now_task'] = 'animator'
-                    session_data['video_generating'] += 1
         return session_data
     
     def route_task(self,state:ChatGraphState):
