@@ -4,7 +4,7 @@ import os
 import asyncio
 from pydantic import BaseModel
 from typing import Dict, Any
-from run_acps import PersonalAssistantOrchestrator, AssistantReply
+from run_acps import Text2VideoWorkflow, AssistantReply
 from file_manage import UserFile
 
 # 创建FastAPI应用
@@ -46,8 +46,8 @@ async def work(request: WorkRequest):
         user_input = request.user_input
         userfile = UserFile(user)
         
-        # 创建PersonalAssistantOrchestrator实例
-        orchestrator = PersonalAssistantOrchestrator(clients=None, userfile=userfile, project_name=project_name, mode='test')
+        # 创建Text2VideoWorkflow实例
+        orchestrator = Text2VideoWorkflow(clients=None, userfile=userfile, project_name=project_name, mode='test')
         
         # 调用handle_user_input方法处理用户输入
         result_state = await orchestrator.handle_user_input(orchestrator.main_session_id, user_input)

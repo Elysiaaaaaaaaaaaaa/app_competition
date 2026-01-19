@@ -65,7 +65,8 @@
   "project_name": "string",
   "user_input": "string",
   "user_id": "string",
-  "mode": "string"
+  "mode": "string",
+  "workflow": "string"
 }
 ```
 
@@ -75,6 +76,7 @@
 | user_input | string | 是 | 用户输入文本，包含具体的任务需求 |
 | user_id | string | 是 | 用户唯一标识符，用于区分不同用户 |
 | mode | string | 是 | 运行模式，如'test'表示测试模式 |
+| workflow | string | 是 | 工作流类型，如'text2video'表示文本到视频工作流 |
 
 #### 响应
 ```json

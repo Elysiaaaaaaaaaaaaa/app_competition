@@ -18,7 +18,32 @@ class UserFile:
             with open(self.session_path,'w',encoding = 'utf-8') as file:
                 json.dump({}, file, ensure_ascii=False, indent=4)
 
-    def init_project(self,project_name):
+    def load_chat_history(self,project_name):
+        chat_history_path = os.path.join(self.project_path,project_name,'chat_history.jsonl')
+        chat_history = []
+        if not os.path.exists(chat_history_path):
+            # 如果文件不存在，创建并返回空列表
+            with open(chat_history_path,'w',encoding = 'utf-8') as file:
+                json.dump([], file, ensure_ascii=False, indent=4)
+            return []
+        with open(chat_history_path,'r',encoding = 'utf-8') as file:
+            for line in file:
+                chat_history.append(json.loads(line))
+            return chat_history
+
+
+    def save_chat_history(self,project_name,state):
+        chat_history_path = os.path.join(self.project_path,project_name,'chat_history.jsonl')
+        new_history = {
+            'user':state['user_input'],
+            'assistant':state['reply'].text,
+            'material':state['session_data']['material']
+        }
+        json_line = json.dumps(new_history, ensure_ascii=False)
+        with open(chat_history_path,'a',encoding = 'utf-8') as file:
+            file.write(json_line + '\n')
+
+    def init_project(self,project_name,session_id):
         i = 1
         new_project_name = project_name
         while new_project_name in self.user_project:
@@ -26,14 +51,18 @@ class UserFile:
             i += 1
         self.user_project.append(new_project_name)
         self.project_content[new_project_name] = None
-        os.makedirs(os.path.join(self.project_path,new_project_name))
+        project_dir = os.path.join(self.project_path,new_project_name)
+        os.makedirs(project_dir)
         content = {
             'material':None,
-            'session_id':None
+            'session_id':session_id
         }
         self.project_content[new_project_name] = content
-        with open(os.path.join(self.project_path,new_project_name, 'project.json'), 'w', encoding='utf-8') as file:
+        with open(os.path.join(project_dir, 'project.json'), 'w', encoding='utf-8') as file:
             json.dump(content, file, ensure_ascii=False, indent=4)
+        # 初始化chat_history.json文件
+        with open(os.path.join(project_dir, 'chat_history.jsonl'), 'w', encoding='utf-8') as file:
+            pass
         return new_project_name
     
     def load_content(self,project_name):
