@@ -1,4 +1,10 @@
-
+'''
+story board创作智能体，会接收到三个任务：
+创作背景图片生成提示词，类型为t2i提示词
+创作主体形象图片生成提示词，类型为t2i提示词
+根据前两个任务的结果，创作分镜首帧图片生成提示词，类型为i2i提示词
+接收到的任务类型可以在session_data的now_task字段里获取
+'''
 
 from volcenginesdkarkruntime import Ark
 import time

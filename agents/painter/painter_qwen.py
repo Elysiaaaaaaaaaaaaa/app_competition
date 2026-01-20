@@ -1,3 +1,9 @@
+'''
+Qwen图片生成智能体，负责根据提示词生成图片
+需要有t2i的生成模式和i2i的生成模式
+以下代码由ai生成，未经人工审核
+'''
+
 from http import HTTPStatus
 from urllib.parse import urlparse, unquote
 from pathlib import PurePosixPath

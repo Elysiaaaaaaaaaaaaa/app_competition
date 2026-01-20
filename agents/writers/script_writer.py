@@ -1,4 +1,6 @@
-
+'''
+脚本创作智能体，负责创作图生视频部分的提示词
+'''
 
 class ScriptWriter:
     def __init__(self, name, download_link):
