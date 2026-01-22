@@ -16,18 +16,17 @@ from langchain_core.prompts import PromptTemplate, ChatPromptTemplate
 import time
 from tools.tool_hub import ark_web_search as web_search_tool
 from tools.web_search import web_search
-
+from base import CONTEXT_CACHE_TIME
 
 assistant_prompt = PromptTemplate.from_template('''
 【角色设定】
-你是一位专业、耐心的AI视频创作导演助手，擅长引导用户从模糊的创意到具体的视频制作需求，正在辅助用户使用视频生成模型进行创作。
+你是一位专业、耐心、充满活力的AI视频创作导演助手，擅长引导用户从模糊的创意到具体的视频制作需求，正在辅助用户使用视频生成模型进行创作。
 
 【核心任务】
 {task}
 
 【搜索工具使用规则】
-必要的时候，请使用联网搜索工具上网搜索资料。
-！注意！你不能连续发起联网搜索工具调用请求，每次只能发起一次。
+必要的时候，请使用function call调用联网搜索工具，上网搜索资料。用户每次输入你只能使用一次搜索工具。
 
 【用户特点】
 - 用户可能没有视频创作经验，不了解视频制作流程
@@ -42,43 +41,32 @@ assistant_prompt = PromptTemplate.from_template('''
 （并且在递交需求给writer智能体之前，要确认用户是否还有其他需要添加的元素）
 
 【回复格式要求】
-1. 每次回复开头必须加上当前你与用户确认过的想法：
-   - 初始阶段："当前我们还没有确认具体想法。"
-   - 确认部分信息后："当前我们的想法是做一个...视频，其中...."
-   - 信息完整后，请使用以下格式确认需求：
-     "当前我们已确认完整的视频创意：
-     - 视频主题：[主题内容]
-     - 视频风格：[风格类型]
-     - 视频时长：[时长信息]
-     - 关键角色：[角色描述]
-     ......
-     ......
-     "
-
-2. 根据任务类型引导用户：
-   - 创意构思阶段：主动询问缺失的核心要素，用友好的方式引导用户补充
-   - 修改阶段：明确询问用户对当前内容的具体修改意见
+1. 你的回复必须是纯JSON格式，不允许包含任何其他文本或格式！
+    请严格按照以下要求输出JSON格式字符串，**必须遵守以下规则**：
+    1. 仅输出JSON，无任何额外文字、注释、说明；
+    2. JSON字符串中所有换行必须用转义符\\n表示，禁止出现真实换行；
+    3. 所有字段名和字符串值必须用双引号包裹，禁止使用单引号；
+    4. 禁止添加任何JSON注释（// 或 /* */）。
+2. JSON必须包含以下字段：
+   - idea：当前我们确认的视频创意想法，详细描述视频的主题、风格、时长、角色等核心要素
+   - chat：与用户进行对话的内容
+3. 示例：
+   - 初始阶段：{{"idea": "当前我们还没有确认具体想法。", "chat": "你需要先描述一下你想要创作的视频类型（如科幻、动作等）和主要角色。"}}
+   - 确认部分信息后：{{"idea": "当前我们的想法是做一个关于太空探索的科幻视频，其中包含宇航员和机器人角色", "chat": "你需要确认视频的时长（建议30秒）和是否需要加入背景音乐。"}}
+   - 信息完整后：{{"idea": "当前我们已确认完整的视频创意：\n- 视频主题：太空探索科幻故事\n- 视频风格：科幻写实\n- 视频时长：30秒\n- 关键角色：宇航员和智能机器人", "chat": "你需要确认视频的时长（建议30秒）和是否需要加入背景音乐。"}}
+   - 修改阶段（传入的material里outline、screen字段不为空）：{{"idea": "当前我们的修改需求是....", "chat": "我们现在要修改的分镜是.....你有什么需求？"}}
 
 【注意】
 以上的对话只是一个示例，用户真正的输入在'user'部分。
-
-【输出要求】
-- 语言友好、口语化，避免专业术语
-- 每次引导1-2个问题，避免信息过载
-- 回复的内容只是视频制作的思路，不需要太过详细，详细的内容会由后续的智能体生成。
-- ！注意！我们的任务是进行视频创作，请不要在回复中包含任何与视频创作无关的内容。
-
-【创作流程】
-当你认为核心要素都确认齐全后，可以在最后确认需求后，将需求递交给writer智能体。
 
 【后续工作流】
 你后续有负责视频大纲的智能体、负责具体分镜提示词写作的智能体、负责视频生成的智能体。
 ''')
 
 task_to_prompt = {
-    "imagination":"和用户对话以帮用户寻找灵感，或引导用户将用户的灵感变成具体的想法。",
-    "outline":"和用户对话，确认他想要如何修改大纲，确保他的修改方向与他的想法相符。",
-    "screen":"和用户对话，确认他想要如何修改分镜脚本，确保想法足够准确",
+    "imagination":"和用户对话以帮用户寻找、激发灵感，或引导用户将用户的灵感变成具体的想法。",
+    "outline":"和用户对话，确认他想要如何修改大纲，确保他的修改方向与他的想法相符。最后输出要交给outline_writer智能体的大纲修改建议。",
+    "screen":"和用户对话，确认他想要如何修改分镜脚本，确保想法足够准确，并生成给分镜写作者的详细修改建议",
     "background":"和用户对话，确认他想要如何修改背景提示词，确保想法足够准确。背景提示词是用于驱动图片生成模型生成这个分镜的背景图片的提示词。",
     "figure":"和用户对话，确认他想要如何修改角色形象提示词，确保想法足够准确。角色形象提示词是用于驱动图片生成模型生成这个分镜的角色形象图片的提示词。",
     "story_board":"和用户对话，确认他想要如何修改分镜首帧提示词，确保想法足够准确。",
@@ -101,16 +89,15 @@ client = Ark(
     api_key='c96dbd1f-aeab-461c-90d6-8096b0baeecd',
 )
 
-
-
 class Assistant:
-    def __init__(self):
-        self.last_id = None
+    def __init__(self,user_name,project_name):
+        self.user_name = user_name
+        self.project_name = project_name
     
-    def init_assistant(self,user_message,material):
+    def init_assistant(self,user_message,material,history,session_data):
         completion = client.responses.create(
         # 指定您创建的方舟推理接入点 ID，此处已帮您修改为您的推理接入点 ID
-            model="doubao-seed-1-6-251015",
+            model="doubao-seed-1-6-flash-250828",
             input=[
                 {
                     'role':'system',
@@ -121,26 +108,31 @@ class Assistant:
                     'content':material_prompt.invoke({'material':json.dumps(material, ensure_ascii=False)}).to_string()
                 },
                 {
+                    'role':'system',
+                    'content':history
+                },
+                {
                     'role':'user',
                     'content':user_message
                 }
             ],
-            tools = web_search_tool,
             caching={"type": "enabled"}, 
+            text={"format":{"type": "json_object"}},
+            tools = web_search_tool,
             thinking={"type": "disabled"},
-            expire_at=int(time.time()) + 360
+            expire_at=int(time.time()) + CONTEXT_CACHE_TIME
         )
-        self.last_id = completion.id
-        return self.next_call(completion)
+        last_id = completion.id
+        result, last_id = self.next_call(completion, session_data,last_id)
+        return result, last_id
     
-    def call(self, message: str,session_data:dict) -> str:
+    def call(self, message: str,session_data:dict) -> tuple:
         now_task = session_data["now_task"]
         material = session_data["material"]
         modify_material = None
-        if session_data['modify_num'] != None:
-            modify_material = session_data['material'][now_task][session_data['modify_num']-1]
-        if not self.last_id:
-            return self.init_assistant(message,material)
+        history = self.load_and_format_chat_history()
+        if session_data['modify_num'] != []:
+            modify_material = session_data['material'][now_task][session_data['modify_num'][session_data['have_modify']]-1]
         input_prompt = [
                 {
                     'role':'system',
@@ -160,35 +152,54 @@ class Assistant:
                 'role':'system',
                 'content':'现在我们需要修改的内容：'+modify_material
             })
-        completion = client.responses.create(
-        # 指定您创建的方舟推理接入点 ID，此处已帮您修改为您的推理接入点 ID
-            model="doubao-seed-1-6-251015",
-            previous_response_id = self.last_id,
-            input=input_prompt,
-            caching={"type": "enabled"}, 
-            thinking={"type": "disabled"},
-            expire_at=int(time.time()) + 360
-        )
-        self.last_id = completion.id
-        return self.next_call(completion)
+        try:
+            # 检查last_id是否存在且不为None
+            if not session_data['last_id']['assistant']:
+                # 如果last_id不存在，调用init_assistant方法
+                return self.init_assistant(message, material, history, session_data)
+            
+            completion = client.responses.create(
+            # 指定您创建的方舟推理接入点 ID，此处已帮您修改为您的推理接入点 ID
+                model="doubao-seed-1-6-flash-250828",
+                previous_response_id = session_data['last_id']['assistant'],
+                input=input_prompt,
+                caching={"type": "enabled"}, 
+                thinking={"type": "disabled"},
+                text={"format":{"type": "json_object"}},
+                expire_at=int(time.time()) + CONTEXT_CACHE_TIME
+            )
+            last_id = completion.id
+            result, last_id = self.next_call(completion, session_data,last_id)
+            return result, last_id
+        except Exception as e:
+            # 捕获API错误，特别是last_id失效时的400错误
+            error_msg = str(e)
+            # 检查HTTP状态码400或404，以及错误信息中的"not found"关键字
+            if "400" in error_msg or "404" in error_msg or "not found" in error_msg.lower():
+                # 如果是last_id失效错误，调用init_assistant方法重新初始化
+                return self.init_assistant(message, material, history, session_data)
+            else:
+                # 其他错误，重新抛出
+                raise e
     
-    def next_call(self,previous_message:str):
+    def next_call(self,previous_message:str, session_data:dict,last_id:str):
+        cnt = 0
         while True:
             function_call = next(
                 (item for item in previous_message.output if item.type == "function_call"),None
             )
             if function_call is None:
-                return previous_message.output[-1].content[0].text
+                return previous_message.output[-1].content[0].text,last_id
             else:
                 call_id = function_call.call_id
                 call_arguments = function_call.arguments
                 arg = json.loads(call_arguments)
                 query = arg["query"]
-                result = web_search(query)
-                print('search query:',query)
+                result = web_search(query,cnt)
+                cnt += 1
                 completion = client.responses.create(
-                    model="doubao-seed-1-6-251015",
-                    previous_response_id = self.last_id,
+                    model="doubao-seed-1-6-flash-250828",
+                    previous_response_id = last_id,
                     input=[
                         {
                             'type':'function_call_output',
@@ -197,12 +208,50 @@ class Assistant:
                         }
                     ],
                     caching={"type": "enabled"}, 
+                    text={"format":{"type": "json_object"}},
                     thinking={"type": "disabled"},
-                    expire_at=int(time.time()) + 360
+                    expire_at=int(time.time()) + CONTEXT_CACHE_TIME
                 )
-                self.last_id = completion.id
+                last_id = completion.id
                 previous_message = completion
-        return previous_message.output[-1].content[0].text
+        return (previous_message.output[-1].content[0].text,last_id)
+
+    def load_and_format_chat_history(self):
+        """从本地加载对话历史并格式化为字符串
+        
+        Returns:
+            str: 格式化的对话历史字符串，如果没有对话历史则返回"当前没有对话历史"
+        """
+        from file_manage import UserFile
+        import os
+        
+        # 创建UserFile实例
+        user_file = UserFile(self.user_name)
+        
+        # 检查项目是否存在
+        if self.project_name not in user_file.user_project:
+            return "当前没有对话历史"
+        
+        # 加载对话历史
+        chat_history = user_file.load_chat_history(self.project_name)
+        
+        # 如果没有对话历史，返回提示
+        if not chat_history:
+            return "当前没有对话历史"
+        
+        # 只保留最近的10条对话
+        recent_chat_history = chat_history[-10:]
+        
+        # 格式化对话历史
+        formatted_history = []
+        # 计算起始序号，保持对话序号的连续性
+        start_index = len(chat_history) - len(recent_chat_history) + 1
+        for i, history_item in enumerate(recent_chat_history, start_index):
+            user_content = history_item.get('user', '')
+            assistant_content = history_item.get('assistant', '')
+            formatted_history.append(f"对话 {i}：\n用户：{user_content}\n助手：{assistant_content}\n")
+        
+        return '\n'.join(formatted_history)
 
 class AssistantExecuter(AgentExecutor):
     def __init__(self):

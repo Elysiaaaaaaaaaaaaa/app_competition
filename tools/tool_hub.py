@@ -1,5 +1,5 @@
 ark_web_search = [{
-  "type": "function",
+    "type": "function",
     "name": "web_search",
     "description": "联网搜索资料。当用户需要了解某个具体的信息，或用户提出的概念你不了解，以及对视频创作有不了解时，使用此工具。",
     "parameters": {
@@ -11,5 +11,6 @@ ark_web_search = [{
         }
         },
         "required": ["query"]
-    }
+    },
+    "strict": True
 }]

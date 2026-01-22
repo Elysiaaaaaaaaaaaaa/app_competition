@@ -1,0 +1,5 @@
+# 忽略Python编译缓存目录
+__pycache__/
+
+# 忽略用户文件目录
+user_files/

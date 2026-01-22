@@ -17,5 +17,24 @@
         "message_count": 0,
         "now_task": "imagination",
         "now_state": "None"
+    },
+    "null": {
+        "material": {
+            "idea": null,
+            "outline": [],
+            "screen": [],
+            "video_address": []
+        },
+        "chat_with_assistant": true,
+        "modify_request": {
+            "outline": null,
+            "screen": null
+        },
+        "modify_num": null,
+        "video_generating": 0,
+        "editing_screen": null,
+        "message_count": 0,
+        "now_task": "imagination",
+        "now_state": "None"
     }
 }

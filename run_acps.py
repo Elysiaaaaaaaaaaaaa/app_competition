@@ -298,17 +298,70 @@ async def _initialize_clients_via_discovery(
 def extract_idea(ai_single_reply):
     """
     从AI的单次回复中提取「当前我们的想法」相关内容
-    :param ai_single_reply: AI的单次回复字符串（一句/一段）
+    :param ai_single_reply: AI的单次回复字符串（JSON格式）
     :return: 提取到的内容列表（无匹配则返回空列表）
     """
-    # 定义关键词（包含两种相关表述）
-    keywords_pattern = r"当前我们(?:的想法|还没有确认具体想法)[^？\n]*"
-    # 从单次回复中匹配目标内容
-    extracted_content = re.findall(keywords_pattern, ai_single_reply)
-    # 整理结果，去除空字符串并去重
-    result = [content.strip() for content in extracted_content if content.strip()]
+    try:
+        # 尝试将AI回复解析为JSON
+        reply_json = json.loads(ai_single_reply)
+        # 提取idea字段
+        if 'idea' in reply_json:
+            idea_content = reply_json['idea']
+            if idea_content.strip():
+                return [idea_content.strip()]
+    except json.JSONDecodeError:
+        # 如果解析失败，返回空列表
+        return []
+    except Exception as e:
+        # 其他异常也返回空列表
+        return []
+    return []
+
+def safe_parse_llm_json(raw_str):
+    """
+    安全解析大模型输出的JSON字符串，兼容常见格式错误
+    新增修复：markdown符号、特殊空格、控制字符、断字空格
+    """
+    if not raw_str:
+        return {}
     
-    return result
+    # 步骤1：提取JSON主体（过滤大模型额外输出的文字）
+    json_match = re.search(r"\{[\s\S]*\}", raw_str)
+    if not json_match:
+        return {}
+    json_str = json_match.group()
+    
+    # 步骤2：修复常见错误（新增核心修复逻辑）
+    fixed_str = (
+        json_str
+        # 修复1：删除markdown加粗符（最核心的报错原因）
+        .replace("**", "")
+        # 修复2：替换真实换行为转义符（保留原逻辑）
+        .replace("\n", "\\n")
+        # 修复3：单引号转双引号（保留原逻辑）
+        .replace("'", '"')
+        # 修复4：替换所有特殊空格（全角/不间断/制表符）为普通半角空格
+        .replace("\u3000", " ").replace("\u00A0", " ").replace("\t", " ")
+        # 修复5：合并连续空格（解决"短 视频""动 作"这类断字问题）
+        .replace("  ", " ")
+        # 修复6：清理不可见控制字符（\r/\b等）
+        .replace("\r", "")
+        # 修复7：去除首尾多余空格（保留原逻辑）
+        .strip()
+    )
+    
+    # 步骤3：容错解析（新增调试信息+终极兜底）
+    try:
+        return json.loads(fixed_str)
+    except json.JSONDecodeError as e:
+        print(f"JSON解析失败（已尽力修复）：{e}")
+        # 终极兜底：即使解析失败，也用正则提取idea/chat字段
+        idea_match = re.search(r'"idea":\s*"([\s\S]*?)"(?=,"chat")', fixed_str)
+        chat_match = re.search(r'"chat":\s*"([\s\S]*?)"(?=}$)', fixed_str)
+        return {
+            "idea": idea_match.group(1).strip() if idea_match else "",
+            "chat": chat_match.group(1).strip() if chat_match else ""
+        }
 
 class Text2VideoWorkflow:
     '''
@@ -319,8 +372,8 @@ class Text2VideoWorkflow:
         self.userfile = userfile
         self.project_name = project_name
         if self.project_name not in self.userfile.user_project:
-            self.project_name = self.userfile.init_project(self.project_name)
             self.main_session_id = f"session-{uuid.uuid4()}"
+            self.project_name = self.userfile.init_project(self.project_name, self.main_session_id, workflow_type='text2video')
         else:
             self.main_session_id = self.userfile.project_content[self.project_name]['session_id']
         
@@ -331,7 +384,7 @@ class Text2VideoWorkflow:
         self._history_store: Dict[str, List[AIMessage | HumanMessage | SystemMessage]] = {}
         self._sessions: Dict[str, Dict[str, Any]] = {}##会话记录加载到这里
         self._sessions = self.userfile.load_session()
-        self.assistant = Assistant()
+        self.assistant = Assistant(user_name=self.userfile.user,project_name=self.project_name)
         self.outline_writer = OutlineWriter()
         self.screen_writer = ScreenWriter()
     
@@ -371,11 +424,13 @@ class Text2VideoWorkflow:
         if self.mode == 'test':
             return f'call {now_task}'
         if now_task == "outline":
-            res = self.outline_writer.call(session_data)
+            res, last_id = self.outline_writer.call(session_data)
             state["session_data"]["material"]["outline"] = res
+            state["session_data"]["last_id"]["outline_writer"] = last_id
         if now_task == 'screen':
-            res = self.screen_writer.call(session_data)
+            res, last_id = self.screen_writer.call(session_data)
             state["session_data"]["material"]["screen"] = res
+            state["session_data"]["last_id"]["screen_writer"] = last_id
         if now_task == "animator":
             video = self.animator.call(session_data)
             state["session_data"]["material"]["video_address"].append(video)
@@ -406,12 +461,18 @@ class Text2VideoWorkflow:
                     "outline": None,
                     "screen": None,
                 },
-                "modify_num": None,
+                "modify_num": [],
+                "have_modify":0,
                 "video_generating": 0,
                 "editing_screen": None,
                 "message_count": 0,
                 "now_task" : "imagination",
                 "now_state":"None",
+                "last_id": {
+                    "assistant": None,
+                    "outline_writer": None,
+                    "screen_writer": None
+                },
             }
             self._sessions[session_id] = session_data
         return session_data
@@ -428,19 +489,24 @@ class Text2VideoWorkflow:
             agentans = self.fun_call_agent(state)
             state['session_data']["now_state"] = "modify_comfirm"
             state['reply'] = AssistantReply(agentans)
-            if state['session_data']['video_generating'] >= len(state['session_data']['material']['screen']):
+            if state['session_data']['video_generating'] >= len(state['session_data']['material']['screen']) and now_task == "animator":
                 state['session_data']['chat_with_assistant'] = False
             #state['reply'].text += '\n是否需要修改？'
             return state
         
         if self.mode == 'test':
             ans = '这里是assistant'
+            idea = ans
+            last_id = None
         else:
-            ans = self.assistant.call(user_text,session_data)
-        idea = extract_idea(ans)
+            ans, last_id = self.assistant.call(user_text,session_data)
+            print(ans)
+            ans_json = safe_parse_llm_json(ans)
+            ans = ans_json['idea']+'\n'+ans_json['chat']
+            idea = ans_json['idea']
+        state['session_data']['last_id']['assistant'] = last_id
         if now_task == "imagination":
-            if len(idea)!=0:
-                state['session_data']['material']['idea'] = idea
+            state['session_data']['material']['idea'] = idea
             state['reply'] = AssistantReply(ans)
         
         if now_state == 'modify':
@@ -449,7 +515,7 @@ class Text2VideoWorkflow:
         
         return state
         
-    async def handle_user_input(self, session_id: str, user_input: str) -> ChatGraphState:
+    async def handle_user_input(self, session_id: str, user_input: str,modify_num:List[int]=[]) -> ChatGraphState:
         ##为了适配单次调用，需要去除内部的所有阻塞程序
         """主入口：接收用户文本并交由 LangGraph 路由，返回回复。
 
@@ -486,6 +552,7 @@ class Text2VideoWorkflow:
         # 通过 LangGraph 统一路由当前对话输入。
         graph_state["session_data"] = self.route_state(graph_state)
         graph_state["session_data"] = self.route_task(graph_state)
+        graph_state["session_data"]["modify_num"] = modify_num
         result_state = await self._graph.ainvoke(graph_state)
         reply = result_state.get("reply")
         if not isinstance(reply, AssistantReply):
@@ -497,7 +564,7 @@ class Text2VideoWorkflow:
         if result_state['session_data']['chat_with_assistant'] == False:
             reply.end_session = True
             merge_videos(result_state['session_data']['material']['video_address'],self.userfile.project_path+self.project_name+'/'+self.project_name+'.mp4')
-        self.userfile.save_chat_history(self.project_name,result_state['session_data'])
+        self.userfile.save_chat_history(self.project_name,result_state)
         # 维护对话轮次计数，便于后续做上下文压缩等扩展。
         result_state['reply'] = _finalize(reply)
         return result_state
@@ -509,7 +576,6 @@ class Text2VideoWorkflow:
         now_task = session_data["now_task"]
         now_state = session_data["now_state"]
         if session_data["now_task"] != "imagination" and session_data["now_state"] == 'modify_comfirm':
-            #intend = input('您是否觉得内容需要修改？(需要修改/不需要)：')##这里有前端后改为按钮
             if intend == '需要修改':
                 session_data['now_state'] = 'modify'
                 if now_task == 'animator':
@@ -517,7 +583,12 @@ class Text2VideoWorkflow:
             if intend == '不需要':
                 session_data['now_state'] = 'create'
                 if now_task == 'outline':
-                    session_data['now_task'] = 'screen'
+                    if session_data['have_modify'] < len(session_data['modify_num']):
+                        session_data['have_modify'] += 1
+                    else:
+                        session_data['have_modify'] = 0
+                        session_data['modify_num'] = []
+                        session_data['now_task'] = 'screen'
                 if now_task == 'screen':
                     session_data['now_task'] = 'animator'
         return session_data
@@ -554,7 +625,7 @@ class Image2VideoWorkflow:
         self.project_name = project_name
         if self.project_name not in self.userfile.user_project:
             self.main_session_id = f"session-{uuid.uuid4()}"
-            self.project_name = self.userfile.init_project(self.project_name,self.main_session_id)
+            self.project_name = self.userfile.init_project(self.project_name,self.main_session_id, workflow_type='image2video')
         else:
             self.main_session_id = self.userfile.project_content[self.project_name]['session_id']
         
@@ -563,7 +634,7 @@ class Image2VideoWorkflow:
         # 关键字注册表：支持用自然语言别名查找底层客户端。
         #self.registry = AgentRegistry(clients, AGENT_KEYWORD_ALIASES)
         self._history_store: Dict[str, List[AIMessage | HumanMessage | SystemMessage]] = {}
-        self._sessions: Dict[str, Dict[str, Any]] = {}##会话记录加载到这里
+        self._sessions: Dict[str, Dict[str, Any]] = {}
         self._sessions = self.userfile.load_session()
         self.assistant = Assistant()
         self.outline_writer = OutlineWriter()
@@ -645,6 +716,11 @@ class Image2VideoWorkflow:
                 "message_count": 0,
                 "now_task" : "imagination",
                 "now_state":"None",
+                "last_id": {
+                    "assistant": None,
+                    "outline_writer": None,
+                    "screen_writer": None
+                },
             }
             self._sessions[session_id] = session_data
         return session_data
@@ -812,19 +888,23 @@ class Image2VideoWorkflow:
         if now_state == 'create':
             if self.mode == 'test':
                 ans = '这里是outline'
+                last_id = None
             else:
-                ans = self.outline_writer.call(session_data)
+                ans, last_id = self.outline_writer.call(session_data)
             state['session_data']['material']['outline'].append(ans)
             state['reply'] = AssistantReply(ans)
+            state['session_data']['last_id']['outline_writer'] = last_id
             state['session_data']['now_state'] = 'modify_confirm'
             return state
         if now_state == 'modify':
             if self.mode == 'test':
                 ans = '这里是outline'
+                last_id = None
             else:
-                ans = self.assistant.call(user_text,session_data)
+                ans, last_id = self.assistant.call(user_text,session_data)
             state['reply'] = AssistantReply(ans)
             state['session_data']['modify_request']['outline'] = ans
+            state['session_data']['last_id']['assistant'] = last_id
             return state
     
     def background_prompting_node(self,state:ChatGraphState)->ChatGraphState:
@@ -846,10 +926,12 @@ class Image2VideoWorkflow:
         if now_state == 'modify':
             if self.mode == 'test':
                 ans = '这里是background_prompting'
+                last_id = None
             else:
-                ans = self.assistant.call(user_text,session_data)
+                ans, last_id = self.assistant.call(user_text,session_data)
             state['reply'] = AssistantReply(ans)
             state['session_data']['modify_request']['background'] = ans
+            state['session_data']['last_id']['assistant'] = last_id
             return state
         
     def background_painting_node(self,state:ChatGraphState)->ChatGraphState:
@@ -871,10 +953,12 @@ class Image2VideoWorkflow:
         if now_state == 'modify':
             if self.mode == 'test':
                 ans = '这里是background_painting'
+                last_id = None
             else:
-                ans = self.assistant.call(user_text,session_data)
+                ans, last_id = self.assistant.call(user_text,session_data)
             state['reply'] = AssistantReply(ans)
             state['session_data']['modify_request']['background'] = ans
+            state['session_data']['last_id']['assistant'] = last_id
             return state
     
     def figure_design_node(self,state:ChatGraphState)->ChatGraphState:
@@ -896,10 +980,12 @@ class Image2VideoWorkflow:
         if now_state == 'modify':
             if self.mode == 'test':
                 ans = '这里是figure_design'
+                last_id = None
             else:
-                ans = self.assistant.call(user_text,session_data)
+                ans, last_id = self.assistant.call(user_text,session_data)
             state['reply'] = AssistantReply(ans)
             state['session_data']['modify_request']['figure'] = ans
+            state['session_data']['last_id']['assistant'] = last_id
             return state
 
     def figure_prompting_node(self,state:ChatGraphState)->ChatGraphState:
@@ -921,10 +1007,12 @@ class Image2VideoWorkflow:
         if now_state == 'modify':
             if self.mode == 'test':
                 ans = '这里是figure_prompting'
+                last_id = None
             else:
-                ans = self.assistant.call(user_text,session_data)
+                ans, last_id = self.assistant.call(user_text,session_data)
             state['reply'] = AssistantReply(ans)
             state['session_data']['modify_request']['figure'] = ans
+            state['session_data']['last_id']['assistant'] = last_id
             return state
 
     def story_board_node(self,state:ChatGraphState)->ChatGraphState:
@@ -946,10 +1034,12 @@ class Image2VideoWorkflow:
         if now_state == 'modify':
             if self.mode == 'test':
                 ans = '这里是story_board'
+                last_id = None
             else:
-                ans = self.assistant.call(user_text,session_data)
+                ans, last_id = self.assistant.call(user_text,session_data)
             state['reply'] = AssistantReply(ans)
             state['session_data']['modify_request']['story_board'] = ans
+            state['session_data']['last_id']['assistant'] = last_id
             return state
     
     def script_node(self,state:ChatGraphState)->ChatGraphState:
@@ -974,10 +1064,12 @@ class Image2VideoWorkflow:
         if now_state == 'modify':
             if self.mode == 'test':
                 ans = '这里是script'
+                last_id = None
             else:
-                ans = self.assistant.call(user_text,session_data)
+                ans, last_id = self.assistant.call(user_text,session_data)
             state['reply'] = AssistantReply(ans)
             state['session_data']['modify_request']['script'] = ans
+            state['session_data']['last_id']['assistant'] = last_id
             return state
     
     def animator_node(self,state:ChatGraphState)->ChatGraphState:
@@ -1051,17 +1143,25 @@ def run_test():
     userfile = UserFile(user)
     project_name = input("请输入项目名称: ")
     mode = input("test or use:")
-    orchestrator = Image2VideoWorkflow(clients=None,userfile=userfile,project_name=project_name,mode=mode)
+    orchestrator = Text2VideoWorkflow(clients=None,userfile=userfile,project_name=project_name,mode=mode)
     session_id = orchestrator.main_session_id
     while 1:
         user_input = input("用户：").strip()
-        res_state = asyncio.run(orchestrator.handle_user_input(session_id,user_input))
+        modify_num = userfile.load_session().get(session_id, {}).get("modify_num", [])
+        if user_input == '需要修改':
+            # 允许用户输入多个用逗号分隔的编号
+            input_str = input("请输入需要修改的项目编号（多个编号用英文逗号分隔）: ")
+            modify_num = [int(num.strip()) for num in input_str.split(',') if num.strip().isdigit()]
+            print(modify_num)
+        res_state = asyncio.run(orchestrator.handle_user_input(session_id,user_input, modify_num))
         reply = res_state['reply']
         if isinstance(reply.text, str):
             print(f"助手: {reply.text}\n")
         if isinstance(reply.text, list):
             for i in reply.text:
                 print(i)
+        if res_state['session_data']['now_state'] == 'modify_confirm':
+            print('是否需要修改：')
         if reply.end_session:
             break
 

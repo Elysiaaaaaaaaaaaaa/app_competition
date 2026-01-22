@@ -9,6 +9,8 @@ class UserFile:
         self.project_path = f'./user_files/{user}/projects/'
         if not os.path.exists(self.file_path):
             os.makedirs(self.file_path)
+        if not os.path.exists(self.project_path):
+            os.makedirs(self.project_path)
         self.user_project = [i for i in os.listdir(self.project_path) if os.path.isdir(os.path.join(self.project_path,i))]
         self.project_content = {}
         for i in self.user_project:
@@ -43,7 +45,7 @@ class UserFile:
         with open(chat_history_path,'a',encoding = 'utf-8') as file:
             file.write(json_line + '\n')
 
-    def init_project(self,project_name,session_id):
+    def init_project(self,project_name,session_id,workflow_type='text2video'):
         i = 1
         new_project_name = project_name
         while new_project_name in self.user_project:
@@ -55,7 +57,8 @@ class UserFile:
         os.makedirs(project_dir)
         content = {
             'material':None,
-            'session_id':session_id
+            'session_id':session_id,
+            'workflow_type': workflow_type
         }
         self.project_content[new_project_name] = content
         with open(os.path.join(project_dir, 'project.json'), 'w', encoding='utf-8') as file:
@@ -69,15 +72,29 @@ class UserFile:
         if project_name not in self.user_project:
             raise FileNotFoundError(f"项目 {project_name} 不存在")
         with open(os.path.join(self.project_path,project_name, 'project.json'), 'r', encoding='utf-8') as file:
-            self.project_content[project_name] = json.load(file)
+            content = json.load(file)
+            # 确保workflow_type字段存在
+            if 'workflow_type' not in content:
+                content['workflow_type'] = 'text2video'
+                # 保存更新后的内容
+                with open(os.path.join(self.project_path,project_name, 'project.json'), 'w', encoding='utf-8') as f:
+                    json.dump(content, f, ensure_ascii=False, indent=4)
+            self.project_content[project_name] = content
         return self.project_content[project_name]
     
     def save_content(self,project_name,material,session_id):
         if project_name not in self.user_project:
             os.makedirs(os.path.join(self.project_path,project_name))
             self.user_project.append(project_name)
-        self.project_content[project_name]['material'] = material
-        self.project_content[project_name]['session_id'] = session_id
+            # 新创建的项目，确保有workflow_type字段
+            self.project_content[project_name] = {
+                'material': material,
+                'session_id': session_id,
+                'workflow_type': 'text2video'
+            }
+        else:
+            self.project_content[project_name]['material'] = material
+            self.project_content[project_name]['session_id'] = session_id
         with open(os.path.join(self.project_path,project_name, 'project.json'), 'w', encoding='utf-8') as file:
             json.dump(self.project_content[project_name], file, ensure_ascii=False, indent=4)
     

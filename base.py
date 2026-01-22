@@ -7,6 +7,7 @@ import json
 import inspect
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Iterable, Any
+import re
 
 try:  # Optional dependency available at runtime in agents
     import openai  # type: ignore
@@ -15,7 +16,7 @@ except Exception:  # pragma: no cover - keep base utils import-safe
 
 # Beijing timezone (UTC+8)
 BEIJING_TZ = timezone(timedelta(hours=8))
-
+CONTEXT_CACHE_TIME = 1800
 
 class BeijingTimeFormatter(logging.Formatter):
     def formatTime(self, record, datefmt=None):  # type: ignore[override]

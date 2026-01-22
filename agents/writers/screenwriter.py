@@ -11,6 +11,7 @@ import asyncio
 import time
 from tools.tool_hub import ark_web_search as tools
 from tools.web_search import web_search
+from base import CONTEXT_CACHE_TIME
 
 
 
@@ -80,7 +81,7 @@ script_example = '''
 镜号 1
 场景：米勒星球的浅海区域，海面呈深蓝灰色且平静无波，泛着微弱反光，远处海平面矗立着形似 “山峦” 的巨大轮廓，背景悬着黑洞，投射出淡紫色引力光晕；徘徊者号飞船平稳着陆浅海，船体下半部分浸在水中，布兰德、道尔在不远处的米勒飞船残骸（半浸水中，金属外壳锈蚀、零件散落）旁探寻，库珀留守驾驶舱内观察。
 【风格】科幻写实风格，冷色调为主（深蓝灰海面、银灰航天服、暗紫黑洞光晕），高对比度，光影层次分明（黑洞光晕照亮海面局部，残骸投射深色阴影，驾驶舱内仪器蓝光形成局部亮面）
-角色：库珀：典型的中年男性形象，发型是利落的短黑发，看起来干练，身形偏精瘦硬朗，常穿浅灰 T 恤，面部线条清晰，气质兼具 “父亲的温和” 与 “宇航员的坚毅”。
+【角色】：库珀：典型的中年男性形象，发型是利落的短黑发，看起来干练，身形偏精瘦硬朗，常穿浅灰 T 恤，面部线条清晰，气质兼具 “父亲的温和” 与 “宇航员的坚毅”。
 运动：库珀在驾驶舱内以高速操控杆操作，初始神情专注，后骤然紧绷，眼神中夹杂着警惕与焦虑。
 【镜头】1. 初始镜头：固定特写，聚焦驾驶舱内库珀面部，画面中心为其双眼，舷窗边缘作为背景框，窗外 “山峦” 轮廓模糊可见；2. 过渡镜头：极速拉远，镜头从面部特写快速拉升至全景，过程带轻微动态模糊，逐步展现驾驶舱、飞船整体、浅海海面及残骸区域；3. 聚焦镜头：拉远后短暂定格全景，随后镜头轻微下移并聚焦海面上的布兰德与道尔，突出二人未察觉危机的状态，同时清晰呈现 “山峦” 实为巨型巨浪的全貌（高约千米，灰黑主体裹挟白色泡沫，底部阴影笼罩海面）；4. 收尾镜头：镜头轻微回拉，再次带起飞船与巨浪的相对位置，强化飞船与人物在巨浪前的渺小感
 【对白】
@@ -106,6 +107,8 @@ screen_prompt = f'''
 3. 格式要求：每个分镜脚本写完后用’/‘隔开
 4. 结构完整性：每个分镜脚本必须包含完整的视觉要素，参考以下示例结构：
 {script_example}
+！注意！每个分镜脚本后面都有一个‘/’，用于分隔不同的镜头。
+
 
 【创作要点】
 - 场景描述：清晰设定时间、地点和环境氛围
@@ -115,6 +118,8 @@ screen_prompt = f'''
 - 音效与对白：根据剧情需要添加合适的音效和对白指示，增强叙事表现力
 - AI友好：使用具体、具象的描述语言，避免抽象或模糊表达，确保AI模型能准确理解视觉需求
 - 一致性：保持不同镜头间的视觉风格、角色形象和叙事逻辑的连贯性
+
+【搜索工具使用】你可以使用联网搜索工具来核实分镜大纲中不明确或不了解的信息。
 '''
 
 abstract_prompt = f'''
@@ -163,18 +168,17 @@ outline_prompt = f'''
 
 class ScreenWriter:
     def __init__(self):
-        self.last_id = None
-        self.screen = []
+        self.screen = None
     
-    def init_assistant(self,message):
+    def init_assistant(self,message,session_data,sys_prompt):
         # 创建初始对话，包含outline_writer的prompt和示例
         completion = client.responses.create(
-            model="doubao-seed-1-6-251015",
+            model="doubao-seed-1-6-flash-250828",
             tools = tools,
             input=[
                 {
                     'role':'system',
-                    'content':screen_prompt
+                    'content':sys_prompt
                 },
                 {
                     'role':'user',
@@ -183,62 +187,103 @@ class ScreenWriter:
             ],
             caching={"type": "enabled"}, 
             thinking={"type": "disabled"},
-            expire_at=int(time.time()) + 360
+            expire_at=int(time.time()) + CONTEXT_CACHE_TIME,
         )
-        self.last_id = completion.id
-        return self.next_call(completion)
+        last_id = completion.id
+        result, last_id = self.next_call(completion, session_data, last_id)
+        return result, last_id
     
-    def call(self,session_data:dict) -> str:
+    def call(self,session_data:dict) -> tuple:
         """
         向火山方舟平台发送请求并返回内容
         :param message: 用户的需求
-        :return: 分镜大纲
+        :return: 分镜大纲和last_id的元组
         """
-        if not self.last_id:
-            raw_screen = self.init_assistant(''.join(session_data['material']['idea']))
-            for i in raw_screen.split('/'):
-                if len(i) > 10:
-                    self.screen.append(i)
-            return self.screen
-        need_modify = session_data['material']['screen'][session_data['modify_num']-1]
-        completion = client.responses.create(
-            model="doubao-seed-1-6-251015",
-            previous_response_id = self.last_id,
-            input=[
-                {
-                    'role':'system',
-                    'content':f'请根据用户的修改请求，修改这个分镜脚本{need_modify}。这次脚本中不需要加其他特殊符号'
-                },
-                {
-                    'role':'user',
-                    'content':session_data['modify_request']['screen']
-                }
-            ],
-            caching={"type": "enabled"}, 
-            thinking={"type": "disabled"},
-            expire_at=int(time.time()) + 360
-        )
-        self.last_id = completion.id
-        self.screen[session_data['modify_num']-1] = self.next_call(completion)
-        return self.screen
+        # 根据material中是否存在screen内容选择提示词
+        if session_data['material']['screen'] != []:
+            # 修改场景：使用修改提示词
+            sys_prompt = change_screen_prompt
+            message = str(session_data['modify_request']['screen'])
+        else:
+            # 首次创作：使用首次创作提示词
+            sys_prompt = screen_prompt
+            message = ''.join(session_data['material']['outline'])
+        
+        try:
+            if not session_data['last_id']['screen_writer']:
+                # 首次调用或last_id失效，使用init_assistant
+                self.screen = []
+                raw_screen, last_id = self.init_assistant(message, session_data, sys_prompt)
+                for i in raw_screen.split('/'):
+                    if len(i) > 10:
+                        self.screen.append(i)
+                return self.screen, last_id
+            
+            # 非首次调用，使用previous_response_id
+            print(type(session_data['modify_num']),session_data['modify_num'],session_data['have_modify'])
+            need_modify = session_data['material']['screen'][session_data['modify_num'][session_data['have_modify']]-1]
+            
+            # 确保 self.screen 已经初始化
+            if self.screen is None:
+                self.screen = session_data['material']['screen'].copy()
+            
+            completion = client.responses.create(
+                model="doubao-seed-1-6-flash-250828",
+                previous_response_id = session_data['last_id']['screen_writer'],
+                input=[
+                    {
+                        'role':'system',
+                        'content':sys_prompt
+                    },
+                    {
+                        'role':'user',
+                        'content':f'请修改这个分镜脚本：{need_modify}\n修改要求：{session_data["modify_request"]["screen"]}'
+                    }
+                ],
+                caching={"type": "enabled"}, 
+                thinking={"type": "disabled"},
+                expire_at=int(time.time()) + CONTEXT_CACHE_TIME,
+            )
+            last_id = completion.id
+            self.screen[session_data['modify_num'][session_data['have_modify']]-1], last_id = self.next_call(completion, session_data, last_id)
+            return self.screen, last_id
+        except Exception as e:
+            # 捕获API错误，特别是last_id失效时的400错误
+            error_msg = str(e)
+            # 检查HTTP状态码400或404，以及错误信息中的"not found"关键字
+            if "400" in error_msg or "404" in error_msg or "not found" in error_msg.lower():
+                # 如果是last_id失效错误，调用init_assistant方法重新初始化
+                self.screen = []
+                raw_screen, last_id = self.init_assistant(message, session_data, sys_prompt)
+                for i in raw_screen.split('/'):
+                    if len(i) > 10:
+                        self.screen.append(i)
+                return self.screen, last_id
+            else:
+                # 其他错误，重新抛出
+                raise e
     
-    def next_call(self,previous_message):
+    def next_call(self,previous_message, session_data,last_id):
+        cnt = 0
+        current_last_id = last_id
         while True:
             function_call = next(
                 (item for item in previous_message.output if item.type == "function_call"),None
             )
             if function_call is None:
-                return previous_message.output[-1].content[0].text
+                return previous_message.output[-1].content[0].text, current_last_id
             else:
                 call_id = function_call.call_id
                 call_arguments = function_call.arguments
+                print(call_arguments)
                 arg = json.loads(call_arguments)
                 query = arg["query"]
-                result = web_search(query)
+                result = web_search(query,cnt)
                 print('search query:',query)
+                cnt += 1
                 completion = client.responses.create(
-                    model="doubao-seed-1-6-251015",
-                    previous_response_id = self.last_id,
+                    model="doubao-seed-1-6-flash-250828",
+                    previous_response_id = current_last_id,
                     input=[
                         {
                             'type':'function_call_output',
@@ -248,11 +293,11 @@ class ScreenWriter:
                     ],
                     caching={"type": "enabled"}, 
                     thinking={"type": "disabled"},
-                    expire_at=int(time.time()) + 360
+                    expire_at=int(time.time()) + CONTEXT_CACHE_TIME,
                 )
-                self.last_id = completion.id
+                current_last_id = completion.id
                 previous_message = completion
-        return previous_message.output[-1].content[0].text
+        return previous_message.output[-1].content[0].text, current_last_id
 
 
 def connect_test(query):

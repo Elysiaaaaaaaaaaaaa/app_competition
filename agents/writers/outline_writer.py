@@ -1,5 +1,7 @@
 from volcenginesdkarkruntime import Ark
 import time
+from langchain_core.prompts import PromptTemplate
+from base import CONTEXT_CACHE_TIME
 
 outline_example = f'''
 镜号 1
@@ -28,25 +30,7 @@ outline_example = f'''
 /
 '''
 
-# 初始化Ark客户端
-client = Ark(
-    base_url="https://ark.cn-beijing.volces.com/api/v3",
-    api_key='c96dbd1f-aeab-461c-90d6-8096b0baeecd',
-)
-
-class OutlineWriter:
-    def __init__(self):
-        self.last_id = None
-        self.outline = []
-    
-    def init_assistant(self,message):
-        # 创建初始对话，包含outline_writer的prompt和示例
-        completion = client.responses.create(
-            model="doubao-seed-1-6-251015",
-            input=[
-                {
-                    'role':'system',
-                    'content':f'''【角色设定】
+outline_develop_prompt = f'''【角色设定】
 你是一位专业的分镜大纲撰写专家，擅长将用户的创意转化为结构化、可视化的分镜大纲，为后续视频制作提供清晰指导。
 
 【核心任务】
@@ -60,12 +44,46 @@ class OutlineWriter:
 【格式要求】
 分镜大纲必须严格按照以下示例格式：
 {outline_example}
+！注意！每个分镜后面都有一个‘/’，用于分隔不同的镜头。
 
 【创作建议】
 - 每个镜头控制在5-10秒的视觉内容（适合短视频制作）
 - 镜头数量建议为5-8个（确保故事紧凑完整）
 - 内容详略得当，为后续分镜脚本智能体预留创作空间
 - 确保镜头之间的逻辑连贯性和叙事流畅性'''
+
+outline_modify_prompt = PromptTemplate.from_template('''【角色设定】
+你是一位专业的分镜大纲修改专家，擅长根据用户反馈精准调整分镜内容，保持故事完整性和视觉连贯性。
+
+【核心任务】
+根据用户提供的修改请求，对以下分镜大纲进行调整，确保修改后的内容完全符合用户需求，同时保持分镜的逻辑连贯性和叙事流畅性。
+
+【当前分镜大纲】
+{outline}
+
+【修改要求】
+1. 严格遵循用户的修改指示，确保所有调整都准确反映用户需求
+2. 保持原有分镜的格式和结构不变
+3. 确保修改后的镜头之间依然保持良好的叙事逻辑
+4. 如有必要，可以对未明确修改的部分进行微调，以确保整体协调一致''')
+# 初始化Ark客户端
+client = Ark(
+    base_url="https://ark.cn-beijing.volces.com/api/v3",
+    api_key='c96dbd1f-aeab-461c-90d6-8096b0baeecd',
+)
+
+class OutlineWriter:
+    def __init__(self):
+        self.outline = []
+    
+    def init_assistant(self,message,session_data,sys_prompt):
+        # 创建初始对话，包含outline_writer的prompt和示例
+        completion = client.responses.create(
+            model="doubao-seed-1-6-flash-250828",
+            input=[
+                {
+                    'role':'system',
+                    'content':sys_prompt
                 },
                 {
                     'role':'user',
@@ -74,59 +92,67 @@ class OutlineWriter:
             ],
             caching={"type": "enabled"}, 
             thinking={"type": "disabled"},
-            expire_at=int(time.time()) + 360
+            expire_at=int(time.time()) + CONTEXT_CACHE_TIME,
         )
-        self.last_id = completion.id
-        return completion.output[-1].content[0].text
+        last_id = completion.id
+        result = completion.output[-1].content[0].text
+        return result, last_id
     
-    def call(self,session_data:dict) -> str:
+    def call(self,session_data:dict) -> tuple:
         """
         向火山方舟平台发送请求并返回内容
         :param message: 用户的需求
-        :return: 分镜大纲
+        :return: 分镜大纲和last_id的元组
         """
-        if not self.last_id:
-            raw_outline = self.init_assistant(''.join(session_data['material']['idea']))
-            for i in raw_outline.split('/'):
-                if len(i) > 10:
-                    self.outline.append(i)
-            return self.outline
-        completion = client.responses.create(
-            model="doubao-seed-1-6-251015",
-            previous_response_id = self.last_id,
-            input=[
-                {
-                    'role':'system',
-                    'content':f'''【角色设定】
-你是一位专业的分镜大纲修改专家，擅长根据用户反馈精准调整分镜内容，保持故事完整性和视觉连贯性。
-
-【核心任务】
-根据用户提供的修改请求，对以下分镜大纲进行调整，确保修改后的内容完全符合用户需求，同时保持分镜的逻辑连贯性和叙事流畅性。
-
-【当前分镜大纲】
-{self.outline}
-
-【修改要求】
-1. 严格遵循用户的修改指示，确保所有调整都准确反映用户需求
-2. 保持原有分镜的格式和结构不变
-3. 确保修改后的镜头之间依然保持良好的叙事逻辑
-4. 如有必要，可以对未明确修改的部分进行微调，以确保整体协调一致'''
-                },
-                {
-                    'role':'user',
-                    'content':str(session_data['modify_request']['outline'])
-                }
-            ],
-            caching={"type": "enabled"}, 
-            thinking={"type": "disabled"},
-            expire_at=int(time.time()) + 360
-        )
-        self.last_id = completion.id
-        raw_outline = completion.output[-1].content[0].text
-        self.outline = []
-        for i in raw_outline.split('/'):
-            self.outline.append(i)
-        return self.outline
+        if session_data['material']['outline']==[]:
+            sys_prompt = outline_develop_prompt
+            message  = ''.join(session_data['material']['idea'])
+        else:
+            sys_prompt = outline_modify_prompt.invoke({"outline":str(session_data['material']['outline'])}).to_string()
+            message  = ''.join(session_data['modify_request']['outline'])
+        try:
+            if not session_data['last_id']['outline_writer']:
+                raw_outline, last_id = self.init_assistant(message, session_data,sys_prompt)
+                for i in raw_outline.split('/'):
+                    if len(i) > 10:
+                        self.outline.append(i)
+                return self.outline, last_id
+            completion = client.responses.create(
+                model="doubao-seed-1-6-flash-250828",
+                previous_response_id = session_data['last_id']['outline_writer'],
+                input=[
+                    {
+                        'role':'system',
+                        'content':sys_prompt
+                    },
+                    {
+                        'role':'user',
+                        'content':str(session_data['modify_request']['outline'])
+                    }
+                ],
+                caching={"type": "enabled"}, 
+                thinking={"type": "disabled"},
+                expire_at=int(time.time()) + CONTEXT_CACHE_TIME,
+            )
+            last_id = completion.id
+            raw_outline = completion.output[-1].content[0].text
+            self.outline[session_data['modify_num'][session_data['have_modify']]-1] = raw_outline
+            return self.outline, last_id
+        except Exception as e:
+            # 捕获API错误，特别是last_id失效时的400错误
+            error_msg = str(e)
+            # 检查HTTP状态码400或404，以及错误信息中的"not found"关键字
+            if "400" in error_msg or "404" in error_msg or "not found" in error_msg.lower():
+                # 如果是last_id失效错误，调用init_assistant方法重新初始化
+                self.outline = []
+                raw_outline, last_id = self.init_assistant(message, session_data,sys_prompt)
+                for i in raw_outline.split('/'):
+                    if len(i) > 10:
+                        self.outline.append(i)
+                return self.outline, last_id
+            else:
+                # 其他错误，重新抛出
+                raise e
 
 if __name__ == "__main__":
     # 测试outline_writer功能
