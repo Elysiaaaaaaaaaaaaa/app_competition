@@ -19,6 +19,9 @@
 | GET | `/` | 根路径健康检查 |
 | GET | `/api/v1/health` | API版本化健康检查 |
 | POST | `/api/v1/work` | 主要工作处理接口 |
+| POST | `/api/v1/projects/list` | 获取用户项目列表 |
+| POST | `/api/v1/projects/history` | 获取指定项目的对话历史 |
+| POST | `/api/v1/projects/new` | 新建项目 |
 
 ## 3. 详细API说明
 
@@ -66,7 +69,7 @@
   "user_input": "string",
   "user_id": "string",
   "mode": "string",
-  "workflow": "string"
+  "modify_nums":[]
 }
 ```
 
@@ -76,7 +79,7 @@
 | user_input | string | 是 | 用户输入文本，包含具体的任务需求 |
 | user_id | string | 是 | 用户唯一标识符，用于区分不同用户 |
 | mode | string | 是 | 运行模式，如'test'表示测试模式 |
-| workflow | string | 是 | 工作流类型，如'text2video'表示文本到视频工作流 |
+| modify_nums | list | 否 | 用户认为需要修改的内容的编号 |
 
 #### 响应
 ```json
@@ -148,7 +151,152 @@ now_state{
 #### 错误响应
 ```json
 {
-  "detail": "错误描述"
+  "success": false,
+  "error": {
+    "code": 500,
+    "message": "错误描述"
+  }
+}
+```
+
+### 3.4 获取用户项目列表
+
+#### 请求
+- **方法**: POST
+- **路径**: `/api/v1/projects/list`
+- **请求体**: `UserIdRequest` 对象
+
+##### 请求模型 (UserIdRequest)
+```json
+{
+  "user_id": "string"
+}
+```
+
+| 字段名 | 类型 | 必填 | 描述 |
+|--------|------|------|------|
+| user_id | string | 是 | 用户唯一标识符，用于区分不同用户 |
+
+#### 响应
+```json
+{
+  "success": true,
+  "projects": [
+    {
+      "project_name": "string",
+      "workflow_type": "string",
+      "now_task": "string"
+    }
+  ]
+}
+```
+
+| 字段名 | 类型 | 描述 |
+|--------|------|------|
+| success | boolean | 请求处理是否成功 |
+| projects | array | 项目列表 |
+| projects[].project_name | string | 项目名称 |
+| projects[].workflow_type | string | 工作流类型，如'text2video'表示文本到视频工作流 |
+| projects[].now_task | string | 当前任务类型，如'imagination'、'outline'、'screen'、'video' |
+
+### 3.5 获取指定项目的对话历史
+
+#### 请求
+- **方法**: POST
+- **路径**: `/api/v1/projects/history`
+- **请求体**: `ProjectHistoryRequest` 对象
+
+##### 请求模型 (ProjectHistoryRequest)
+```json
+{
+  "user_id": "string",
+  "project_name": "string"
+}
+```
+
+| 字段名 | 类型 | 必填 | 描述 |
+|--------|------|------|------|
+| user_id | string | 是 | 用户唯一标识符，用于区分不同用户 |
+| project_name | string | 是 | 项目名称，用于标识不同的项目会话 |
+
+#### 响应
+```json
+{
+  "success": true,
+  "chat_history": [
+    {
+      "user": "string",
+      "assistant": "string",
+      "material": {
+        "idea": null,
+        "outline": [],
+        "screen": [],
+        "video_address": []
+      }
+    }
+  ]
+}
+```
+
+| 字段名 | 类型 | 描述 |
+|--------|------|------|
+| success | boolean | 请求处理是否成功 |
+| chat_history | array | 对话历史列表，包含每次对话的完整记录 |
+| chat_history[].user | string | 用户输入内容 |
+| chat_history[].assistant | string | 助手回复内容 |
+| chat_history[].material | object | 对话时的项目材料数据 |
+| chat_history[].material.idea | array | 创意想法列表 |
+| chat_history[].material.outline | array | 大纲内容 |
+| chat_history[].material.screen | array | 剧本内容 |
+| chat_history[].material.video_address | array | 生成的视频地址列表 |
+
+### 3.6 新建项目
+
+#### 请求
+- **方法**: POST
+- **路径**: `/api/v1/projects/new`
+- **请求体**: `NewProjectRequest` 对象
+
+##### 请求模型 (NewProjectRequest)
+```json
+{
+  "user_id": "string",
+  "project_name": "string",
+  "workflow_type": "string"
+}
+```
+
+| 字段名 | 类型 | 必填 | 描述 |
+|--------|------|------|------|
+| user_id | string | 是 | 用户唯一标识符，用于区分不同用户 |
+| project_name | string | 是 | 项目名称，用于标识不同的项目会话 |
+| workflow_type | string | 是 | 工作流类型，支持'text2video'和'image2video' |
+
+#### 响应
+```json
+{
+  "success": true,
+  "project_name": "string",
+  "session_id": "string",
+  "workflow_type": "string"
+}
+```
+
+| 字段名 | 类型 | 描述 |
+|--------|------|------|
+| success | boolean | 请求处理是否成功 |
+| project_name | string | 创建的项目名称 |
+| session_id | string | 新生成的会话ID |
+| workflow_type | string | 工作流类型 |
+
+#### 错误响应
+```json
+{
+  "success": false,
+  "error": {
+    "code": 400,
+    "message": "无效的工作流类型: xxx，只允许: text2video, image2video"
+  }
 }
 ```
 
@@ -264,3 +412,6 @@ curl -X POST "http://localhost:8003/api/v1/work" \
   - 实现了主要工作处理接口
   - 支持多用户、多项目会话管理
   - 支持测试模式
+  - 新增获取用户项目列表API
+  - 新增获取指定项目的对话历史API
+  - 新增新建项目API
