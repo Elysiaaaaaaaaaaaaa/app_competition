@@ -25,35 +25,6 @@
 
 ## 3. 详细API说明
 
-### 3.1 根路径健康检查
-
-#### 请求
-- **方法**: GET
-- **路径**: `/`
-- **参数**: 无
-
-#### 响应
-```json
-{
-  "message": "后端服务运行正常",
-  "version": "1.0.0"
-}
-```
-
-### 3.2 API版本化健康检查
-
-#### 请求
-- **方法**: GET
-- **路径**: `/api/v1/health`
-- **参数**: 无
-
-#### 响应
-```json
-{
-  "status": "healthy",
-  "service": "backend-api"
-}
-```
 
 ### 3.3 工作处理接口
 
@@ -80,6 +51,7 @@
 | user_id | string | 是 | 用户唯一标识符，用于区分不同用户 |
 | mode | string | 是 | 运行模式，如'test'表示测试模式 |
 | modify_nums | list | 否 | 用户认为需要修改的内容的编号 |
+| last_id | dict | 是 | 各个文本生成智能体的最后一条消息的ID，用于使用上下文缓存功能。 |
 
 #### 响应
 ```json
@@ -101,9 +73,9 @@
       "outline": null,
       "screen": null
     },
-    "modify_num": null,
+    "modify_nums": [],
+    "have_modify": "int",
     "video_generating": 0,
-    "editing_screen": null,
     "message_count": 0,
     "now_task": "string",
     "now_state": "string"
@@ -129,6 +101,7 @@ now_state{
 }
 ```
 
+
 | 字段名 | 类型 | 描述 |
 |--------|------|------|
 | success | boolean | 请求处理是否成功 |
@@ -147,6 +120,13 @@ now_state{
 | session_data.video_generating | number | 正在生成的视频索引 |
 | session_data.now_task | string | 当前任务类型 |
 | session_data.now_state | string | 当前状态 |
+| session_data.last_id | dict | 各个文本生成智能体的最后一条消息的ID，用于使用上下文缓存功能 |
+
+
+前端需要特别处理的响应：
+- session_data的now_state为modify_confirm时，前端需要显示修改确认弹窗，需要用户确认是否修改。其中，若用户选择需要修改，向工作流返回的user_input为”需要修改“，并弹出窗口，让用户选择需要修改的内容（例如弹窗出多选按钮，每个按钮上展示outline(或screen)中对应编号的内容）。并在选择完成后立即在请求的modify_nums字段向工作流返回用户选择的内容索引列表，索引从1开始。
+若用户选择不需要修改，向工作流返回的user_input为”不需要修改“。并在选择后立即向后端发送请求。
+
 
 #### 错误响应
 ```json
@@ -234,7 +214,31 @@ now_state{
         "video_address": []
       }
     }
-  ]
+  ],
+  "session_data": {
+    "material": {
+      "idea": [],
+      "outline": [],
+      "screen": [],
+      "video_address": []
+    },
+    "chat_with_assistant": true,
+    "modify_request": {
+      "outline": null,
+      "screen": null
+    },
+    "modify_nums": [],
+    "have_modify": "int",
+    "video_generating": 0,
+    "message_count": 0,
+    "now_task": "string",
+    "now_state": "string",
+    "last_id": {
+      "assistant": "string",
+      "outline": "string",
+      "screen": "string"
+    }
+  }
 }
 ```
 
@@ -249,6 +253,18 @@ now_state{
 | chat_history[].material.outline | array | 大纲内容 |
 | chat_history[].material.screen | array | 剧本内容 |
 | chat_history[].material.video_address | array | 生成的视频地址列表 |
+| session_data | object | 最新的会话数据，包含当前任务状态和项目材料 |
+| session_data.material | object | 项目材料数据 |
+| session_data.material.idea | array | 创意想法列表 |
+| session_data.material.outline | array | 大纲内容 |
+| session_data.material.screen | array | 剧本内容 |
+| session_data.material.video_address | array | 生成的视频地址列表 |
+| session_data.chat_with_assistant | boolean | 是否继续与助手对话 |
+| session_data.modify_request | object | 修改请求数据 |
+| session_data.video_generating | number | 正在生成的视频索引 |
+| session_data.now_task | string | 当前任务类型 |
+| session_data.now_state | string | 当前状态 |
+| session_data.last_id | dict | 各个文本生成智能体的最后一条消息的ID，用于使用上下文缓存功能。 |
 
 ### 3.6 新建项目
 

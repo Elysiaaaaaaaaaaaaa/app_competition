@@ -319,9 +319,20 @@ async def get_project_history(request: ProjectHistoryRequest):
         # 获取对话历史
         chat_history = userfile.load_chat_history(project_name)
         
+        # 获取项目的session_id
+        project_content = userfile.load_content(project_name)
+        session_id = project_content.get('session_id')
+        
+        # 从session_history中获取最新的session_data
+        session_data = None
+        if session_id:
+            all_sessions = userfile.load_session()
+            session_data = all_sessions.get(session_id, {})
+        
         return {
             "success": True,
-            "chat_history": chat_history
+            "chat_history": chat_history,
+            "session_data": session_data
         }
     except Exception as e:
         return get_error_response(detail=str(e), status_code=500)
