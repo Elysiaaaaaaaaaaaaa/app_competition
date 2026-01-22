@@ -16,7 +16,7 @@ except Exception:  # pragma: no cover - keep base utils import-safe
 
 # Beijing timezone (UTC+8)
 BEIJING_TZ = timezone(timedelta(hours=8))
-CONTEXT_CACHE_TIME = 1800
+CONTEXT_CACHE_TIME = 900
 
 class BeijingTimeFormatter(logging.Formatter):
     def formatTime(self, record, datefmt=None):  # type: ignore[override]

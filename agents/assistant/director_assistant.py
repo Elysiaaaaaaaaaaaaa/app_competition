@@ -97,7 +97,7 @@ class Assistant:
     def init_assistant(self,user_message,material,history,session_data):
         completion = client.responses.create(
         # 指定您创建的方舟推理接入点 ID，此处已帮您修改为您的推理接入点 ID
-            model="doubao-seed-1-6-flash-250828",
+            model="doubao-seed-1-6-lite-251015",
             input=[
                 {
                     'role':'system',
@@ -160,7 +160,7 @@ class Assistant:
             
             completion = client.responses.create(
             # 指定您创建的方舟推理接入点 ID，此处已帮您修改为您的推理接入点 ID
-                model="doubao-seed-1-6-flash-250828",
+                model="doubao-seed-1-6-lite-251015",
                 previous_response_id = session_data['last_id']['assistant'],
                 input=input_prompt,
                 caching={"type": "enabled"}, 
@@ -198,7 +198,7 @@ class Assistant:
                 result = web_search(query,cnt)
                 cnt += 1
                 completion = client.responses.create(
-                    model="doubao-seed-1-6-flash-250828",
+                    model="doubao-seed-1-6-lite-251015",
                     previous_response_id = last_id,
                     input=[
                         {

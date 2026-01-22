@@ -79,7 +79,7 @@ class OutlineWriter:
     def init_assistant(self,message,session_data,sys_prompt):
         # 创建初始对话，包含outline_writer的prompt和示例
         completion = client.responses.create(
-            model="doubao-seed-1-6-flash-250828",
+            model="doubao-seed-1-6-lite-251015",
             input=[
                 {
                     'role':'system',
@@ -118,7 +118,7 @@ class OutlineWriter:
                         self.outline.append(i)
                 return self.outline, last_id
             completion = client.responses.create(
-                model="doubao-seed-1-6-flash-250828",
+                model="doubao-seed-1-6-lite-251015",
                 previous_response_id = session_data['last_id']['outline_writer'],
                 input=[
                     {

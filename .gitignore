@@ -3,3 +3,4 @@ __pycache__/
 
 # 忽略用户文件目录
 user_files/
+.trae/
